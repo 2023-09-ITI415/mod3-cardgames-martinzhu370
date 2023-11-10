@@ -123,7 +123,7 @@ foreach( CardProspector cd in tableau ) {
 bool faceUp = true; // Assume the card will be face-up 
 foreach( CardProspector cover in cd.hiddenBy ) {
 // If either of the covering cards are in the tableau 
-if (cover.state == eCardState.tableau) {
+if (cover.state == CardState.tableau) {
 faceUp = false; // then this card is face-down
 }
 }
