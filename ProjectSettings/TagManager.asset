@@ -44,6 +44,9 @@ TagManager:
   - name: Row 0
     uniqueID: 2752893033
     locked: 0
+  - name: New Layer 7
+    uniqueID: 2364009243
+    locked: 0
   - name: Row 1
     uniqueID: 2867049945
     locked: 0

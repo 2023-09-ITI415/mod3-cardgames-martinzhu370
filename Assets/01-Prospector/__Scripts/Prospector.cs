@@ -4,11 +4,20 @@ using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
 
+public enum ScoreEvent {
+	draw,
+	mine,
+	mineGold,
+	gameWin,
+	gameLoss
+}
 
 public class Prospector : MonoBehaviour {
 
 	static public Prospector 	S;
-
+	static public int SCORE_FROM_PREV_ROUND = 0;
+	static public int HIGH_SCORE = 0;
+	public float reloadDelay = 1f; // The delay between rounds
 	[Header("Set in Inspector")]
 	public TextAsset			deckXML;
 
@@ -20,21 +29,39 @@ public class Prospector : MonoBehaviour {
 	public TextAsset layoutXML;
 	public List<CardProspector> drawPile;
 
+	public int chain = 0;
+	public int scoreRun = 0;
+	public int score = 0;
+
 	public Vector3 layoutCenter;
+	public Vector2 fsPosMid = new Vector2( 0.5f, 0.90f );
+	public Vector2 fsPosRun = new Vector2( 0.5f, 0.75f );
+	public Vector2 fsPosMid2 = new Vector2( 0.4f, 1.0f );
+	public Vector2 fsPosEnd = new Vector2( 0.5f, 0.95f );
 	public float xOffset = 3;
 	public float yOffset = -2.5f;
 	public Transform layoutAnchor;
-
+	[Header("Set Dynamically")]
 	public CardProspector target;
 	public List<CardProspector> tableau; 
 	public List<CardProspector> discardPile;
+	public FloatingScore fsRun;
 
 
 	void Awake(){
 		S = this;
+		if (PlayerPrefs.HasKey ("ProspectorHighScore")) {
+		HIGH_SCORE = PlayerPrefs.GetInt("ProspectorHighScore");
+		}
+		// Add the score from last round, which will be >0 if it was a win
+		score += SCORE_FROM_PREV_ROUND;
+		// And reset the SCORE_FROM_PREV_ROUND
+		SCORE_FROM_PREV_ROUND = 0;
+
 	}
 
 	void Start() {
+		Scoreboard.S.score = score;
 		deck = GetComponent<Deck> ();
 		deck.InitDeck (deckXML.text);
 		Deck.Shuffle(ref deck.cards); // This shuffles the deck
@@ -200,6 +227,8 @@ case CardState.drawpile:
 MoveToDiscard(target); // Moves the target to the discardPile 
 MoveToTarget(Draw()); // Moves the next drawn card to the target 
 UpdateDrawPile(); // Restacks the drawPile
+ScoreManager(ScoreEvent.draw);
+FloatingScoreHandler(ScoreEvent.draw);
 break;
 case CardState.tableau:
 bool validMatch = true;
@@ -247,12 +276,70 @@ GameOver (false);
 // Called when the game is over. Simple for now, but expandable
 void GameOver(bool won) {
 if (won) {
-print ("Game Over. You won! :)");
+ScoreManager(ScoreEvent.gameWin);
+FloatingScoreHandler(ScoreEvent.gameWin);
+
 } else {
-print ("Game Over. You Lost. :(");
+ScoreManager(ScoreEvent.gameLoss);
+FloatingScoreHandler(ScoreEvent.gameLoss);
+
 }
+
+// Reload the scene in reloadDelay seconds
+// This will give the score a moment to travel
+Invoke ("ReloadLevel", reloadDelay); //1
+// Application.LoadLevel("__Prospector_Scene_0"); // Now commented out
+}
+void ReloadLevel() {
+// Reload the scene, resetting the game
+Application.LoadLevel("__Prospector");
+}
+
+
+
 // Reload the scene, resetting the game 
-SceneManager.LoadScene("__Prospector_Scene_0"); }
+//SceneManager.LoadScene("__Prospector_Scene_0"); }
+
+// ScoreManager handles all of the scoring
+void ScoreManager(ScoreEvent sEvt) {
+	
+switch (sEvt) {
+// Same things need to happen whether it's a draw, a win, or a loss
+case ScoreEvent.draw: // Drawing a card
+case ScoreEvent.gameWin: // Won the round
+case ScoreEvent.gameLoss: // Lost the round
+chain = 0; // resets the score chain
+score += scoreRun; // add scoreRun to total score
+scoreRun = 0; // reset scoreRun
+break;
+case ScoreEvent.mine: // Remove a mine card
+chain++; // increase the score chain
+scoreRun += chain; // add score for this card to run
+break;
+}
+// This second switch statement handles round wins and losses
+switch (sEvt) {
+case ScoreEvent.gameWin:
+// If it's a win, add the score to the next round
+// static fields are NOT reset by Application.LoadLevel()
+Prospector.SCORE_FROM_PREV_ROUND = score;
+print ("You won this round! Round score: "+score);
+break;
+case ScoreEvent.gameLoss:
+// If it's a loss, check against the high score
+if (Prospector.HIGH_SCORE <= score) {
+print("You got the high score! High score: "+score);
+Prospector.HIGH_SCORE = score;
+PlayerPrefs.SetInt("ProspectorHighScore", score);
+} else {
+print ("Your final score for the game was: "+score);
+}
+break;
+default:
+print ("score: "+score+" scoreRun:"+scoreRun+" chain:"+chain);
+break;
+}
+}
 
 
 public bool AdjacentRank(CardProspector c0, CardProspector c1) { // If either card is face-down, it's not adjacent.
@@ -268,8 +355,54 @@ if (c0.rank == 13 && c1.rank == 1) return(true);
 // Otherwise, return false
 return(false); }
 
+void FloatingScoreHandler(ScoreEvent evt) {
+List<Vector2> fsPts;
+switch (evt) {
+// Same things need to happen whether it's a draw, a win, or a loss
+case ScoreEvent.draw: // Drawing a card
+case ScoreEvent.gameWin: // Won the round
+case ScoreEvent.gameLoss: // Lost the round
+// Add fsRun to the Scoreboard score
+if (fsRun != null) {
+// Create points for the Bézier curve1
+fsPts = new List<Vector2>();
+fsPts.Add( fsPosRun );
+fsPts.Add( fsPosMid2 );
+fsPts.Add( fsPosEnd );
+fsRun.reportFinishTo = Scoreboard.S.gameObject;
+fsRun.Init(fsPts, 0, 1);
+// Also adjust the fontSize
+fsRun.fontSizes = new List<float>(new float[] {28,36,4});
+fsRun = null; // Clear fsRun so it's created again
+}
+break;
+case ScoreEvent.mine: // Remove a mine card
+// Create a FloatingScore for this score
+FloatingScore fs;
+// Move it from the mousePosition to fsPosRun
+Vector2 p0 = Input.mousePosition;
+p0.x /= Screen.width;
+p0.y /= Screen.height;
+fsPts = new List<Vector2>();
+fsPts.Add( p0 );
+fsPts.Add( fsPosMid );
+fsPts.Add( fsPosRun );
+fs = Scoreboard.S.CreateFloatingScore(chain, fsPts);
+fs.fontSizes = new List<float>(new float[] {4,50,28});
+if (fsRun == null) {
+fsRun = fs;
+fsRun.reportFinishTo = null;
+} else {
+fs.reportFinishTo = fsRun.gameObject;
+}
+break;
+}
+}
+
+
 
 }
 
 
 // page 683/823
+
