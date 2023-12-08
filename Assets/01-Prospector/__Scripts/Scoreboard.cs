@@ -55,4 +55,9 @@ fs.reportFinishTo = this.gameObject; // Set fs to call back to this
 fs.Init(pts);
 return(fs);
 }
+
+// internal FloatingScore CreateFloatingScore(int chain, List<Vector3> fsPts)
+// {
+// throw new NotImplementedException();
+// }
 }
