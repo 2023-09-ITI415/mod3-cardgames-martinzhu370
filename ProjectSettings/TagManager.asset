@@ -41,19 +41,16 @@ TagManager:
   - name: Default
     uniqueID: 0
     locked: 0
-  - name: Row 0
+  - name: Row0
     uniqueID: 2752893033
     locked: 0
-  - name: New Layer 7
-    uniqueID: 2364009243
-    locked: 0
-  - name: Row 1
+  - name: Row1
     uniqueID: 2867049945
     locked: 0
-  - name: Row 2
+  - name: Row2
     uniqueID: 2225158293
     locked: 0
-  - name: Row 3
+  - name: Row3
     uniqueID: 2948306273
     locked: 0
   - name: Discard
